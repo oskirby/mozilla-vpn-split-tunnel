@@ -35,7 +35,7 @@
 
 - (void)cancelProxyWithError:(NSError *) error {
     // TODO: Implement Me!
-    NSLog(@"cancel proxy: %s", error.localizedDescription);
+    NSLog(@"cancel proxy: %@", error.localizedDescription);
 }
 
 @end

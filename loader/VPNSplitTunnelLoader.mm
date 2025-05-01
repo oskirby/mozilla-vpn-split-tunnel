@@ -16,85 +16,100 @@
 
 - (id)init {
   self = [super init];
+  self.manager = nullptr;
 
   // Request the installation of the proxy extension
+  NSLog(@"request started");
   self.request = [OSSystemExtensionRequest activationRequestForExtension: self.identifier
                                                                    queue: dispatch_get_main_queue()];
   self.request.delegate = self;
+  return self;
+}
 
+- (void) setupManager:(void (^)(NSError * error)) completionHandler {
   [NETransparentProxyManager loadAllFromPreferencesWithCompletionHandler:^(NSArray<NETransparentProxyManager *>* managers, NSError* err){
     if (err != nil) {
-      printf("load all failed: %s\n", [err.localizedDescription UTF8String]);
-    } else {
-      printf("load all: %d\n", managers.count);
+      NSLog(@"load managers failed: %@", err.localizedDescription);
+      completionHandler(err);
+      return;
     }
+
+    // Check if an existing manager can be used.
+    for (NETransparentProxyManager* mgr in managers) {
+      auto proto = static_cast<NETunnelProviderProtocol*>([mgr protocolConfiguration]);
+      NSLog(@"found existing manager: %@", proto.providerBundleIdentifier);
+      if ([proto.providerBundleIdentifier isEqualToString:self.identifier]) {
+        self.manager = mgr;
+        completionHandler(nil);
+        return;
+      }
+    }
+
+    // Otherwise - create a new manager.
+    auto protocol = [NETunnelProviderProtocol new];
+    protocol.providerBundleIdentifier = self.identifier;
+    protocol.serverAddress = @"127.0.0.1";
+
+    self.manager = [NETransparentProxyManager new];
+    self.manager.protocolConfiguration = protocol;
+    self.manager.localizedDescription = @"Mozilla VPN Split Tunnel";
+    completionHandler(nil);
   }];
-
-  // Create the proxy manager.
-  auto protocol = [NETunnelProviderProtocol new];
-  protocol.providerBundleIdentifier = self.identifier;
-  protocol.serverAddress = @"127.0.0.1";
-  self.manager = [NETransparentProxyManager new];
-  self.manager.protocolConfiguration = protocol;
-  self.manager.localizedDescription = @"Mozilla VPN Split Tunnel";
-
-  return self;
 }
 
 - (void)    request:(OSSystemExtensionRequest *) request
 didFinishWithResult:(OSSystemExtensionRequestResult) result {
-  printf("request succeeded\n");
+  NSLog(@"request succeeded");
   // Enable the proxy manager.
-  self.manager.enabled = true;
+  [self setupManager:^(NSError* error) {
+    self.manager.enabled = true;
 
-  // Load preferences
-  [self.manager saveToPreferencesWithCompletionHandler:^(NSError* error){
-    if (error == nil) {
-      printf("save succeeded\n");
-    } else {
-      printf("save failed: %s\n", [error.localizedDescription UTF8String]);
-    }
-    [self.manager loadFromPreferencesWithCompletionHandler:^(NSError* error){
+    // Sync preferences and start the proxy.
+    [self.manager saveToPreferencesWithCompletionHandler:^(NSError* error){
       if (error == nil) {
-        printf("load succeeded\n");
+        NSLog(@"save succeeded");
       } else {
-        printf("load failed: %s\n", [error.localizedDescription UTF8String]);
+        NSLog(@"save failed: %@", error.localizedDescription);
       }
-      [self startProxy];
+      [self.manager loadFromPreferencesWithCompletionHandler:^(NSError* error){
+        if (error == nil) {
+          NSLog(@"load succeeded");
+        } else {
+          NSLog(@"load failed: %@", error.localizedDescription);
+        }
+        [self startProxy];
+      }];
     }];
   }];
 }
 
 - (void) request:(OSSystemExtensionRequest *) request
 didFailWithError:(NSError *) error {
-  printf("failed to load: %s\n", [self.identifier UTF8String]);
-  printf("request failed: %s\n", [[error localizedDescription] UTF8String]);
+  NSLog(@"request failed: %@", error.localizedDescription);
 }
 
 - (void) requestNeedsUserApproval:(OSSystemExtensionRequest *) request {
-  printf("request needs user approval\n");
+  NSLog(@"request needs user approval");
 }
 
 - (OSSystemExtensionReplacementAction) request:(OSSystemExtensionRequest *) request
                    actionForReplacingExtension:(OSSystemExtensionProperties *) existing 
                                  withExtension:(OSSystemExtensionProperties *) ext {
-  printf("replacement action: %s -> %s\n",
-         [existing.bundleVersion UTF8String], [ext.bundleVersion UTF8String]);
+  NSLog(@"replacement action: %@ -> %@", existing.bundleVersion, ext.bundleVersion);
   return OSSystemExtensionReplacementActionReplace;
 }
-
 
 - (void) startProxy {
   NSError* startErr = nil;
   auto session = static_cast<NETunnelProviderSession*>(self.manager.connection);
-  printf("proxy status: %ld\n", static_cast<long>([session status]));
+  NSLog(@"proxy status: %ld", static_cast<long>([session status]));
   BOOL okay = [session startTunnelWithOptions:[NSDictionary<NSString*,id> new]
                                andReturnError:&startErr];
   if (startErr) {
-    printf("start failed: %s\n", [[startErr localizedDescription] UTF8String]);
+    NSLog(@"start failed: %@", startErr.localizedDescription);
   }
 
-  printf("proxy status: %ld\n", static_cast<long>([session status]));
+  NSLog(@"proxy status: %ld", static_cast<long>([session status]));
 }
 
 @end

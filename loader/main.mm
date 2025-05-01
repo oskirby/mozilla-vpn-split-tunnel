@@ -8,7 +8,7 @@
 #import "VPNSplitTunnelLoader.h"
 
 int main(int argc, char *argv[]) {
-  printf("request started\n");
+  NSLog(@"request started");
   auto loader = [[VPNSplitTunnelLoader alloc] init];
   [[OSSystemExtensionManager sharedManager] submitRequest: loader.request];
 
