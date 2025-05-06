@@ -11,7 +11,8 @@
 @implementation VPNSplitTunnelLoader
 
 - (NSString*) identifier {
-    return @"org.mozilla.macos.FirefoxVPN.split-tunnel";
+  NSString* appId = [[NSBundle mainBundle] bundleIdentifier];
+  return [appId stringByAppendingString:@".sysex"];
 }
 
 - (id)init {
@@ -19,7 +20,7 @@
   self.manager = nullptr;
 
   // Request the installation of the proxy extension
-  NSLog(@"request started");
+  NSLog(@"request started: %@", self.identifier);
   self.request = [OSSystemExtensionRequest activationRequestForExtension: self.identifier
                                                                    queue: dispatch_get_main_queue()];
   self.request.delegate = self;
@@ -59,7 +60,7 @@
 
 - (void)    request:(OSSystemExtensionRequest *) request
 didFinishWithResult:(OSSystemExtensionRequestResult) result {
-  NSLog(@"request succeeded");
+  NSLog(@"request complete: %d", result);
   // Enable the proxy manager.
   [self setupManager:^(NSError* error) {
     self.manager.enabled = true;

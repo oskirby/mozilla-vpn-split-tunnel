@@ -9,8 +9,6 @@
 
 int main(int argc, char *argv[])
 {
-    NSLog(@"Hello World!");
-
     @autoreleasepool {
         os_log_t logHandle = nil;
         logHandle = os_log_create("org.mozilla.macos.FirefoxVPN.split-tunnel", "Default");
